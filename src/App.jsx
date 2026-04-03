@@ -1,120 +1,212 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || ''
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || ''
+
+const formatDate = (value) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isAuthed, setIsAuthed] = useState(false)
+  const [users, setUsers] = useState([])
+  const [status, setStatus] = useState('idle')
+  const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
+
+  const filteredUsers = useMemo(() => {
+    if (!query.trim()) return users
+    const q = query.trim().toLowerCase()
+    return users.filter((user) => {
+      return (
+        user.name?.toLowerCase().includes(q) ||
+        user.email?.toLowerCase().includes(q)
+      )
+    })
+  }, [users, query])
+
+  const fetchUsers = async () => {
+    setStatus('loading')
+    setError('')
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/users`, {
+        headers: {
+          'x-admin-email': ADMIN_EMAIL,
+          'x-admin-password': ADMIN_PASSWORD,
+        },
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load users')
+      }
+
+      setUsers(data.users || [])
+      setLastUpdated(new Date().toISOString())
+      setStatus('ready')
+    } catch (err) {
+      setError(err.message || 'Failed to load users')
+      setStatus('error')
+    }
+  }
+
+  useEffect(() => {
+    if (isAuthed) {
+      fetchUsers()
+    }
+  }, [isAuthed])
+
+  const handleLogin = (event) => {
+    event.preventDefault()
+    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+      setError('Admin credentials are missing in .env')
+      return
+    }
+
+    if (email.trim() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      setIsAuthed(true)
+      setError('')
+      return
+    }
+
+    setError('Invalid admin credentials')
+  }
+
+  const handleLogout = () => {
+    setIsAuthed(false)
+    setEmail('')
+    setPassword('')
+    setUsers([])
+    setStatus('idle')
+    setError('')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <div className="shell">
+      <header className="topbar">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+          <p className="eyebrow">Petify Admin Console</p>
+          <h1>Operations Dashboard</h1>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+        {isAuthed ? (
+          <div className="topbar-actions">
+            <button className="ghost" onClick={fetchUsers}>
+              Refresh
+            </button>
+            <button className="danger" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
+        ) : null}
+      </header>
 
-      <div className="ticks"></div>
+      {!isAuthed ? (
+        <section className="login">
+          <div className="card">
+            <div className="card-header">
+              <h2>Admin Login</h2>
+              <p>Secure access for Petify administrators.</p>
+            </div>
+            <form className="form" onSubmit={handleLogin}>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="admin@petify.gmail.com"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </label>
+              {error ? <div className="error">{error}</div> : null}
+              <button type="submit" className="primary">
+                Sign in
+              </button>
+            </form>
+            <div className="card-foot">
+              <span>Default credentials are stored in .env</span>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <main className="content">
+          <section className="summary">
+            <div className="summary-card">
+              <p>Total Users</p>
+              <h3>{users.length}</h3>
+              <span>Active accounts</span>
+            </div>
+            <div className="summary-card">
+              <p>Last Updated</p>
+              <h3>{lastUpdated ? formatDate(lastUpdated) : '—'}</h3>
+              <span>Server sync time</span>
+            </div>
+          </section>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          <section className="users">
+            <div className="users-header">
+              <div>
+                <h2>Active Users</h2>
+                <p>All registered Petify users currently in the system.</p>
+              </div>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by name or email"
+              />
+            </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+            {status === 'loading' ? (
+              <div className="empty">Loading users…</div>
+            ) : status === 'error' ? (
+              <div className="error-block">{error}</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="empty">No users match that search.</div>
+            ) : (
+              <div className="table">
+                <div className="table-row table-head">
+                  <span>Name</span>
+                  <span>Email</span>
+                  <span>Joined</span>
+                  <span>Updated</span>
+                </div>
+                {filteredUsers.map((user) => (
+                  <div className="table-row" key={user._id}>
+                    <span>{user.name || '—'}</span>
+                    <span>{user.email || '—'}</span>
+                    <span>{formatDate(user.createdAt)}</span>
+                    <span>{formatDate(user.updatedAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+    </div>
   )
 }
 
