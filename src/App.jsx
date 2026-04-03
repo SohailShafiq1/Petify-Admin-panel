@@ -25,6 +25,10 @@ function App() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [detailsStatus, setDetailsStatus] = useState('idle')
+  const [detailsError, setDetailsError] = useState('')
+  const [details, setDetails] = useState({ petsAdded: [], orders: [] })
 
   const filteredUsers = useMemo(() => {
     if (!query.trim()) return users
@@ -60,6 +64,66 @@ function App() {
     } catch (err) {
       setError(err.message || 'Failed to load users')
       setStatus('error')
+    }
+  }
+
+  const fetchUserDetails = async (userId) => {
+    setDetailsStatus('loading')
+    setDetailsError('')
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/users/${userId}/details`, {
+        headers: {
+          'x-admin-email': ADMIN_EMAIL,
+          'x-admin-password': ADMIN_PASSWORD,
+        },
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load user details')
+      }
+
+      setDetails({ petsAdded: data.petsAdded || [], orders: data.orders || [] })
+      setDetailsStatus('ready')
+    } catch (err) {
+      setDetailsError(err.message || 'Failed to load user details')
+      setDetailsStatus('error')
+    }
+  }
+
+  const toggleBlockUser = async (user) => {
+    setError('')
+    const action = user.isBlocked ? 'unblock' : 'block'
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/admin/users/${user._id}/${action}`,
+        {
+          method: 'POST',
+          headers: {
+            'x-admin-email': ADMIN_EMAIL,
+            'x-admin-password': ADMIN_PASSWORD,
+          },
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update user')
+      }
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item._id === user._id ? { ...item, isBlocked: data.user?.isBlocked } : item,
+        ),
+      )
+
+      if (selectedUser && selectedUser._id === user._id) {
+        setSelectedUser({ ...selectedUser, isBlocked: data.user?.isBlocked })
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to update user')
     }
   }
 
@@ -191,19 +255,102 @@ function App() {
                   <span>Name</span>
                   <span>Email</span>
                   <span>Joined</span>
+                  <span>Status</span>
                   <span>Updated</span>
+                  <span>Actions</span>
                 </div>
                 {filteredUsers.map((user) => (
                   <div className="table-row" key={user._id}>
                     <span>{user.name || '—'}</span>
                     <span>{user.email || '—'}</span>
                     <span>{formatDate(user.createdAt)}</span>
+                    <span>
+                      <span className={user.isBlocked ? 'pill danger' : 'pill success'}>
+                        {user.isBlocked ? 'Blocked' : 'Active'}
+                      </span>
+                    </span>
                     <span>{formatDate(user.updatedAt)}</span>
+                    <span className="actions">
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setSelectedUser(user)
+                          fetchUserDetails(user._id)
+                        }}
+                      >
+                        View
+                      </button>
+                      <button
+                        className={user.isBlocked ? 'primary' : 'danger'}
+                        onClick={() => toggleBlockUser(user)}
+                      >
+                        {user.isBlocked ? 'Unblock' : 'Block'}
+                      </button>
+                    </span>
                   </div>
                 ))}
               </div>
             )}
           </section>
+
+          {selectedUser ? (
+            <section className="details">
+              <div className="details-header">
+                <div>
+                  <h2>User Details</h2>
+                  <p>{selectedUser.name || '—'} · {selectedUser.email || '—'}</p>
+                </div>
+                <button className="ghost" onClick={() => setSelectedUser(null)}>
+                  Close
+                </button>
+              </div>
+
+              {detailsStatus === 'loading' ? (
+                <div className="empty">Loading details…</div>
+              ) : detailsStatus === 'error' ? (
+                <div className="error-block">{detailsError}</div>
+              ) : (
+                <div className="details-grid">
+                  <div>
+                    <h3>Pets Added</h3>
+                    {details.petsAdded.length === 0 ? (
+                      <div className="empty">No pets listed.</div>
+                    ) : (
+                      <ul className="list">
+                        {details.petsAdded.map((pet) => (
+                          <li key={pet._id}>
+                            <span>{pet.name}</span>
+                            <span className="muted">{pet.category}</span>
+                            <span className="muted">
+                              {pet.isAvailable ? 'Active' : 'Sold'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <h3>Orders (Bought Pets)</h3>
+                    {details.orders.length === 0 ? (
+                      <div className="empty">No orders yet.</div>
+                    ) : (
+                      <ul className="list">
+                        {details.orders.map((pet) => (
+                          <li key={pet._id}>
+                            <span>{pet.name}</span>
+                            <span className="muted">{pet.category}</span>
+                            <span className="muted">
+                              {pet.deliveryStatus === 'completed' ? 'Delivered' : 'Pending'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : null}
         </main>
       )}
     </div>
