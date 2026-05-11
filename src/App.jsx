@@ -19,6 +19,7 @@ const formatDate = (value) => {
 function App() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isAuthed, setIsAuthed] = useState(false)
   const [users, setUsers] = useState([])
   const [status, setStatus] = useState('idle')
@@ -153,6 +154,7 @@ function App() {
     setIsAuthed(false)
     setEmail('')
     setPassword('')
+    setShowPassword(false)
     setUsers([])
     setStatus('idle')
     setError('')
@@ -191,19 +193,29 @@ function App() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="admin@petify.gmail.com"
+                  placeholder="Your Email"
                   required
                 />
               </label>
               <label>
                 Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
+                <div className="password-field">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
+                </div>
               </label>
               {error ? <div className="error">{error}</div> : null}
               <button type="submit" className="primary">
